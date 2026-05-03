@@ -3,8 +3,17 @@ import type { InsertLead, Lead, Settings, UpdateSettings } from "@shared/schema"
 import { drizzle } from "drizzle-orm/better-sqlite3";
 import Database from "better-sqlite3";
 import { desc, eq } from "drizzle-orm";
+import fs from "node:fs";
+import path from "node:path";
 
-const sqlite = new Database("data.db");
+const dbPath = process.env.DB_PATH || "data.db";
+const dbDirectory = path.dirname(dbPath);
+
+if (dbDirectory && dbDirectory !== ".") {
+  fs.mkdirSync(dbDirectory, { recursive: true });
+}
+
+const sqlite = new Database(dbPath);
 sqlite.pragma("journal_mode = WAL");
 sqlite.exec(`
   CREATE TABLE IF NOT EXISTS settings (
