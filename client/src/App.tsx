@@ -29,6 +29,7 @@ type EstimatorState = {
   selectedPackage: PackageKey;
 };
 type ContactForm = { name: string; email: string; phone: string };
+type AdminAuth = { username: string; password: string };
 
 const defaultEstimator: EstimatorState = {
   zipCode: "",
@@ -419,9 +420,29 @@ function EstimatorPage() {
 
 function AdminPage() {
   const { toast } = useToast();
-  const { data: settings } = useQuery<Settings>({ queryKey: ["/api/settings"] });
-  const { data: leads = [] } = useQuery<Lead[]>({ queryKey: ["/api/leads"] });
+  const [adminAuth, setAdminAuth] = useState<AdminAuth | null>(null);
+  const adminHeaders = useMemo(
+    () => (adminAuth ? { Authorization: `Basic ${btoa(`${adminAuth.username}:${adminAuth.password}`)}` } : undefined),
+    [adminAuth],
+  );
+  const { data: settings, error: settingsError } = useQuery<Settings>({
+    queryKey: ["/api/admin/settings", adminAuth?.username ?? "", adminAuth?.password ?? ""],
+    enabled: !!adminAuth,
+    queryFn: async () => {
+      const res = await apiRequest("GET", "/api/admin/settings", undefined, adminHeaders);
+      return res.json();
+    },
+  });
+  const { data: leads = [], error: leadsError } = useQuery<Lead[]>({
+    queryKey: ["/api/leads", adminAuth?.username ?? "", adminAuth?.password ?? ""],
+    enabled: !!adminAuth,
+    queryFn: async () => {
+      const res = await apiRequest("GET", "/api/leads", undefined, adminHeaders);
+      return res.json();
+    },
+  });
   const form = useForm<UpdateSettings>();
+  const authForm = useForm<AdminAuth>({ defaultValues: { username: "admin", password: "" } });
 
   useEffect(() => {
     if (settings) form.reset(settings);
@@ -440,7 +461,7 @@ function AdminPage() {
         twoStoryMultiplier: Number(values.twoStoryMultiplier),
         tearOffPerSquare: Number(values.tearOffPerSquare),
       };
-      const res = await apiRequest("PATCH", "/api/settings", payload);
+      const res = await apiRequest("PATCH", "/api/settings", payload, adminHeaders);
       return res.json();
     },
     onSuccess: () => {
@@ -459,6 +480,39 @@ function AdminPage() {
         </div>
         <Button asChild variant="outline"><Link href="/" data-testid="link-preview">Preview estimator</Link></Button>
       </div>
+      {!adminAuth || settingsError || leadsError ? (
+        <Card className="max-w-xl">
+          <CardHeader>
+            <CardTitle className="text-lg">Admin sign in</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <form
+              className="space-y-4"
+              onSubmit={authForm.handleSubmit((values) => {
+                setAdminAuth(values);
+                queryClient.invalidateQueries({ queryKey: ["/api/admin/settings"] });
+                queryClient.invalidateQueries({ queryKey: ["/api/leads"] });
+              })}
+            >
+              {(settingsError || leadsError) ? (
+                <div className="rounded-lg bg-destructive/10 p-3 text-sm text-destructive" data-testid="status-admin-error">
+                  Admin credentials were not accepted. Please try again.
+                </div>
+              ) : null}
+              <div className="space-y-2">
+                <Label htmlFor="admin-username">Username</Label>
+                <Input id="admin-username" data-testid="input-admin-username" {...authForm.register("username", { required: true })} />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="admin-password">Password</Label>
+                <Input id="admin-password" data-testid="input-admin-password" type="password" {...authForm.register("password", { required: true })} />
+              </div>
+              <Button type="submit" data-testid="button-admin-login">Open pricing admin</Button>
+              <p className="text-sm text-muted-foreground">Admin access is required before pricing controls or saved lead details are shown.</p>
+            </form>
+          </CardContent>
+        </Card>
+      ) : (
       <Tabs defaultValue="pricing">
         <TabsList>
           <TabsTrigger value="pricing" data-testid="tab-pricing"><SettingsIcon className="mr-2 h-4 w-4" /> Pricing</TabsTrigger>
@@ -518,6 +572,7 @@ function AdminPage() {
           </Card>
         </TabsContent>
       </Tabs>
+      )}
     </main>
   );
 }
