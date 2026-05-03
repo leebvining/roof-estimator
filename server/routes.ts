@@ -8,7 +8,7 @@ import dns from "node:dns/promises";
 import net from "node:net";
 
 const ADMIN_USER = process.env.ADMIN_USER || "admin";
-const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || "RidgeQuote!2026";
+const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || "";
 const leadAttempts = new Map<string, { count: number; resetAt: number }>();
 
 function safeEqual(a: string, b: string) {
@@ -19,6 +19,11 @@ function safeEqual(a: string, b: string) {
 }
 
 function requireAdmin(req: Parameters<Express["get"]>[1] extends (req: infer R, ...args: any[]) => any ? R : never, res: any, next: () => void) {
+  if (!ADMIN_PASSWORD) {
+    res.status(503).json({ message: "Admin password is not configured" });
+    return;
+  }
+
   const header = req.headers.authorization;
   if (!header?.startsWith("Basic ")) {
     res.setHeader("WWW-Authenticate", 'Basic realm="Ridge Quote Admin"');

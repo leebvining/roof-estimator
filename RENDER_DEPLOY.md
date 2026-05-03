@@ -45,3 +45,5 @@ https://YOUR-RENDER-URL.onrender.com/#/admin
 ```
 
 Use the `ADMIN_USER` and `ADMIN_PASSWORD` you set in Render. The admin page controls pricing and shows saved estimate leads.
+
+If `ADMIN_PASSWORD` is not set, the admin API intentionally refuses access.
